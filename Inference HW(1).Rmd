@@ -1,0 +1,132 @@
+---
+title: "Inference HW"
+output: pdf_document
+date: '2023-04-15'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Load Data
+```{r include=FALSE}
+load(file = url("https://mfasiolo.github.io/TOI/price_dat.RData"))
+head(price_dat)
+str(price_dat)
+```
+## Q1
+```{r}
+#For (0.1)
+m11<-lm(pr1~week_c,data=price_dat)
+summary(m11)
+par(mfrow=c(2,2))#plot 4 in 1
+plot(m11)
+
+m12<-lm(pr2~week_c,data=price_dat)
+summary(m12)
+par(mfrow=c(2,2))#plot 4 in 1
+plot(m12)
+
+
+m21<-lm(pr1~week_c+I(cos(2*pi*(week_y-53)/53)),data=price_dat)
+summary(m21)
+par(mfrow=c(2,2))#plot 4 in 1
+plot(m21)
+
+m22<-lm(pr2~week_c+I(cos(2*pi*(week_y-53)/53)),data=price_dat)
+summary(m22)
+par(mfrow=c(2,2))#plot 4 in 1
+plot(m22)
+
+
+m31<-lm(pr1~week_c+I(cos(2*pi*(week_y-53)/53))+I(holy),data=price_dat)
+summary(m31)
+par(mfrow=c(2,2))#plot 4 in 1
+plot(m31)
+
+m32<-lm(pr2~week_c+I(cos(2*pi*(week_y-53)/53))+I(holy),data=price_dat)
+summary(m32)
+par(mfrow=c(2,2))#plot 4 in 1
+plot(m32)
+
+# AIC(model)
+```
+
+## Q2 (e.g.)
+```{r}
+log_m31<-lm(log(pr1)~week_c+I(cos(2*pi*(week_y-53)/53))+I(holy),data=price_dat)
+summary(log_m31)
+
+
+```
+
+## Q3
+
+Finally chose log-normal 2 for price 1 and log-normal 3 for price2
+
+## Q4.a b
+```{r}
+#model for price 1
+m1 <- lm(log(pr1)~week_c+I(cos(2*pi*(week_y-53)/53)),data=price_dat)
+summary(m1)
+
+#model for price 2 
+m2 <- lm(log(pr2)~week_c+I(cos(2*pi*(week_y-53)/53))+I(holy),data=price_dat)
+summary(m2)
+
+#load test data
+load(file = url("https://mfasiolo.github.io/TOI/price_dat_test.RData")) 
+head(price_dat_test)
+
+#Calculate analytically solution by calculating frequency as the probability
+price_dat_test$pr1 = exp(predict(m1,newdata =price_dat_test))
+price_dat_test$pr2 = exp(predict(m2,newdata =price_dat_test))
+
+
+#Estimate sigma of each price as they follows log-normal distribution with the mean given by the model
+#Estimate sigma of each price under log normal models, as the sigma for the error term
+##Price 1 
+sigma_1 = var(m1$residuals)
+##Price 2
+sigma_2 = var(m2$residuals)
+
+#Simulating 10000 times for the price 1 and price 2 
+library(MASS)
+n = 1000
+m = nrow(price_dat_test)
+price = matrix(0,m,2)
+lower_bound = rep(0,m)
+upper_bound = rep(0,m)
+for (i in 1:m) {
+  mu_1 = log(price_dat_test$pr1[i])
+  mu_2 = log(price_dat_test$pr2[i])
+  table = MASS::mvrnorm(n, mu = c(mu_1,mu_2), Sigma = diag(c(sigma_1,sigma_2)))
+  price_tmp = exp(table)
+  a = ((price_tmp[,1]/price_tmp[,2]) <0.9)
+  price_dat_test$sim_prob[i] = mean(a)
+  price_dat_test$lower_bound[i] = mean(a) - 1.96*sd(a)/sqrt(n)
+  price_dat_test$upper_bound[i] = mean(a) + 1.96*sd(a)/sqrt(n)
+}
+price_dat_test
+
+```
+
+
+
+##Q4.c
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+ggplot(aes(x = week_c,y=sim_prob), data = price_dat_test)+
+  geom_line()+
+  geom_point() + 
+  geom_label( 
+    data=price_dat_test %>% filter(sim_prob>0.5), # Filter data first
+    aes(label=paste(paste("week",week_c),paste("prob=",sim_prob),sep="\n")))
+
+ggplot(data = price_dat_test, aes(week_c)) + 
+  geom_line(aes(y = sim_prob, colour = "Probability")) + 
+  geom_line(aes(y = lower_bound, colour = "Lower"), linetype = "dashed")+
+  geom_line(aes(y = upper_bound, colour = "Upper"), linetype = "dashed")
+```
